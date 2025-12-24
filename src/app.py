@@ -9,48 +9,91 @@ class SettingsPanel(wx.Panel):
         super().__init__(parent)
         self.on_save = on_save
         self.on_cancel = on_cancel
+        self.cfg = cfg.copy()
+
         s = wx.BoxSizer(wx.VERTICAL)
 
-        grid = wx.FlexGridSizer(rows=2, cols=2, vgap=8, hgap=8)
-        grid.AddGrowableCol(1, 1)
+        # area to list editable tool rows
+        self.list_panel = wx.Panel(self)
+        self.list_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.list_panel.SetSizer(self.list_sizer)
 
-        grid.Add(wx.StaticText(self, label="Stable Diffusion URL:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.sd_ctrl = wx.TextCtrl(self, value=cfg.get("stable_diffusion", ""))
-        grid.Add(self.sd_ctrl, 1, wx.EXPAND)
+        s.Add(self.list_panel, 1, wx.ALL | wx.EXPAND, 8)
 
-        grid.Add(wx.StaticText(self, label="IOPaint URL:"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.io_ctrl = wx.TextCtrl(self, value=cfg.get("iopaint", ""))
-        grid.Add(self.io_ctrl, 1, wx.EXPAND)
-
-        s.Add(grid, 0, wx.ALL | wx.EXPAND, 8)
-        # push buttons to the bottom of the panel
-        s.AddStretchSpacer()
-
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # add / save / cancel controls at bottom
+        ctl_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_add = wx.Button(self, label="追加")
+        ctl_sizer.Add(btn_add, 0, wx.RIGHT, 6)
+        ctl_sizer.AddStretchSpacer()
         btn_save = wx.Button(self, label="保存")
         btn_cancel = wx.Button(self, label="キャンセル")
-        btn_sizer.AddStretchSpacer()
-        btn_sizer.Add(btn_save, 0, wx.RIGHT, 6)
-        btn_sizer.Add(btn_cancel, 0)
+        ctl_sizer.Add(btn_save, 0, wx.RIGHT, 6)
+        ctl_sizer.Add(btn_cancel, 0)
 
-        s.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 8)
+        s.Add(ctl_sizer, 0, wx.EXPAND | wx.ALL, 8)
 
         self.SetSizer(s)
 
+        btn_add.Bind(wx.EVT_BUTTON, self._on_add_row)
         btn_save.Bind(wx.EVT_BUTTON, self.on_save_clicked)
         btn_cancel.Bind(wx.EVT_BUTTON, self.on_cancel_clicked)
 
+        self.rows = []  # list of (name_ctrl, url_ctrl, remove_btn, container)
+        self.build_rows(self.cfg)
+
+    def build_rows(self, cfg: dict):
+        # clear existing
+        for _, _, _, cont in list(self.rows):
+            cont.Destroy()
+        self.rows.clear()
+
+        for name, url in cfg.items():
+            self._create_row(name, url)
+
+    def _create_row(self, name: str = "", url: str = ""):
+        cont = wx.Panel(self.list_panel)
+        hs = wx.BoxSizer(wx.HORIZONTAL)
+        name_ctrl = wx.TextCtrl(cont, value=name)
+        url_ctrl = wx.TextCtrl(cont, value=url)
+        btn_rm = wx.Button(cont, label="削除")
+        hs.Add(wx.StaticText(cont, label="名前:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        hs.Add(name_ctrl, 0, wx.EXPAND | wx.RIGHT, 6)
+        hs.Add(wx.StaticText(cont, label="URL:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        hs.Add(url_ctrl, 1, wx.EXPAND | wx.RIGHT, 6)
+        hs.Add(btn_rm, 0)
+        cont.SetSizer(hs)
+        self.list_sizer.Add(cont, 0, wx.EXPAND | wx.BOTTOM, 6)
+
+        def on_remove(evt):
+            cont.Destroy()
+            # remove from rows list
+            self.rows[:] = [r for r in self.rows if r[3] is not cont]
+            self.Layout()
+
+        btn_rm.Bind(wx.EVT_BUTTON, on_remove)
+        self.rows.append((name_ctrl, url_ctrl, btn_rm, cont))
+
+    def _on_add_row(self, event):
+        self._create_row("", "")
+        self.Layout()
+
     def on_save_clicked(self, event):
-        sd = self.sd_ctrl.GetValue().strip() or config.DEFAULT["stable_diffusion"]
-        io = self.io_ctrl.GetValue().strip() or config.DEFAULT["iopaint"]
-        newcfg = {"stable_diffusion": sd, "iopaint": io}
+        newcfg = {}
+        for name_ctrl, url_ctrl, _, _ in self.rows:
+            name = name_ctrl.GetValue().strip()
+            url = url_ctrl.GetValue().strip()
+            if not name:
+                continue
+            key = name.lower().replace(" ", "_")
+            newcfg[key] = url
+        if not newcfg:
+            wx.MessageBox("ツールが一つも設定されていません。", "エラー", wx.OK | wx.ICON_ERROR)
+            return
         config.save(newcfg)
         if callable(self.on_save):
             self.on_save(newcfg)
 
     def on_cancel_clicked(self, event):
-        # call cancel callback if provided (MainFrame will restore view),
-        # otherwise hide as a fallback
         if callable(self.on_cancel):
             self.on_cancel()
         else:
@@ -74,48 +117,38 @@ class MainFrame(wx.Frame):
         # let settings occupy the full right area when shown
         right_sizer.Add(self.settings_panel, 1, wx.EXPAND)
 
-        # Create separate panels for each tool's WebView so we can toggle via Enable/Disable
-        self.sd_panel = wx.Panel(right)
-        sd_s = wx.BoxSizer(wx.VERTICAL)
-        self.web_sd = wx.html2.WebView.New(self.sd_panel)
-        sd_s.Add(self.web_sd, 1, wx.EXPAND)
-        self.sd_panel.SetSizer(sd_s)
+        # dynamic tool panels will be created from cfg
+        self.tool_panels = {}
+        self.tool_webviews = {}
+        self.tool_loaded = {}
 
-        self.io_panel = wx.Panel(right)
-        io_s = wx.BoxSizer(wx.VERTICAL)
-        self.web_io = wx.html2.WebView.New(self.io_panel)
-        io_s.Add(self.web_io, 1, wx.EXPAND)
-        self.io_panel.SetSizer(io_s)
-
-        right_sizer.Add(self.sd_panel, 1, wx.EXPAND)
-        right_sizer.Add(self.io_panel, 1, wx.EXPAND)
+        # store right references so helper methods can modify layout
+        self.right = right
+        self.right_sizer = right_sizer
+        # placeholder: create panels for each configured tool
+        self._build_tool_panels(self.cfg)
         right.SetSizer(right_sizer)
-
-        # track whether we've loaded each webview once
-        self.sd_loaded = False
-        self.io_loaded = False
 
         self.splitter.SplitVertically(left, right, sashPosition=220)
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
-        btn_sd = wx.Button(left, label="Stable Diffusion WebUI")
-        btn_io = wx.Button(left, label="IOPaint")
-        # ensure left column has a reasonable width so buttons are visible
-        left.SetMinSize((220, -1))
-        btn_sd.SetMinSize((200, 36))
-        btn_io.SetMinSize((200, 36))
-        left_sizer.Add(btn_sd, 0, wx.EXPAND | wx.ALL, 6)
-        left_sizer.Add(btn_io, 0, wx.EXPAND | wx.ALL, 6)
+        # area to contain tool buttons (rebuildable)
+        self.tools_sizer = wx.BoxSizer(wx.VERTICAL)
+        left_sizer.Add(self.tools_sizer, 0, wx.EXPAND | wx.ALL, 6)
         left_sizer.AddStretchSpacer()
         btn_settings = wx.Button(left, label="設定")
         left_sizer.Add(btn_settings, 0, wx.EXPAND | wx.ALL, 6)
         left.SetSizer(left_sizer)
 
-        btn_sd.Bind(wx.EVT_BUTTON, lambda e: self.show_tool("stable_diffusion"))
-        btn_io.Bind(wx.EVT_BUTTON, lambda e: self.show_tool("iopaint"))
         btn_settings.Bind(wx.EVT_BUTTON, self.on_settings)
-        # show SD by default after layout is set
-        self.show_tool("stable_diffusion")
+        # build left menu buttons from cfg
+        self._build_left_menu(left)
+        # show first tool by default
+        first = next(iter(self.cfg.keys()), None)
+        if first:
+            self.show_tool(first)
+
+        left.SetMinSize((220, -1))
 
     def load_url(self, url: str):
         if not url:
@@ -124,15 +157,58 @@ class MainFrame(wx.Frame):
             url = "http://" + url
         try:
             # default to stable diffusion webview
-            try:
-                self.web_sd.LoadURL(url)
-                self.sd_loaded = True
-            except Exception:
-                # fallback: try io
-                self.web_io.LoadURL(url)
-                self.io_loaded = True
+            # load into the first available webview (legacy helper)
+            for w in self.tool_webviews.values():
+                try:
+                    w.LoadURL(url)
+                    break
+                except Exception:
+                    continue
         except Exception:
             wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
+
+    # --- dynamic tool panel helpers ---
+    def _clear_tool_panels(self):
+        for p in list(self.tool_panels.values()):
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        self.tool_panels.clear()
+        self.tool_webviews.clear()
+        self.tool_loaded.clear()
+
+    def _build_tool_panels(self, cfg: dict):
+        # clear any existing
+        self._clear_tool_panels()
+        # create a panel+webview per configured tool and add to right_sizer
+        for key, url in cfg.items():
+            panel = wx.Panel(self.right)
+            s = wx.BoxSizer(wx.VERTICAL)
+            web = wx.html2.WebView.New(panel)
+            s.Add(web, 1, wx.EXPAND)
+            panel.SetSizer(s)
+            panel.Hide()
+            self.right_sizer.Add(panel, 1, wx.EXPAND)
+            self.tool_panels[key] = panel
+            self.tool_webviews[key] = web
+            self.tool_loaded[key] = False
+
+    def _build_left_menu(self, left_panel):
+        # clear existing children in tools_sizer
+        for child in list(self.tools_sizer.GetChildren()):
+            widget = child.GetWindow()
+            if widget:
+                widget.Destroy()
+        # create buttons for each tool
+        for key in self.cfg.keys():
+            label = key.replace('_', ' ').title()
+            btn = wx.Button(left_panel, label=label)
+            btn.SetMinSize((200, 36))
+            self.tools_sizer.Add(btn, 0, wx.EXPAND | wx.ALL, 6)
+            btn.Bind(wx.EVT_BUTTON, lambda e, k=key: self.show_tool(k))
+        # refresh
+        left_panel.Layout()
 
     def show_tool(self, tool_name: str):
         # If settings panel is open, treat any tool switch as a cancel:
@@ -146,40 +222,44 @@ class MainFrame(wx.Frame):
 
         # remember current tool so we can restore after closing settings
         self.current_tool = tool_name
-        # Show appropriate panel and enable/disable without reloading if already opened
-        if tool_name == "stable_diffusion":
-            url = self.cfg.get("stable_diffusion")
-            if url and not self.sd_loaded:
-                try:
-                    if not url.startswith("http"):
-                        url = "http://" + url
-                    self.web_sd.LoadURL(url)
-                    self.sd_loaded = True
-                except Exception:
-                    wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
-            # enable SD panel, disable IO panel
-            self.sd_panel.Show()
-            self.sd_panel.Enable(True)
-            self.io_panel.Hide()
-            self.io_panel.Enable(False)
-        elif tool_name == "iopaint":
-            url = self.cfg.get("iopaint")
-            if url and not self.io_loaded:
-                try:
-                    if not url.startswith("http"):
-                        url = "http://" + url
-                    self.web_io.LoadURL(url)
-                    self.io_loaded = True
-                except Exception:
-                    wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
-            # enable IO panel, disable SD panel
-            self.io_panel.Show()
-            self.io_panel.Enable(True)
-            self.sd_panel.Hide()
-            self.sd_panel.Enable(False)
+        # hide all tool panels
+        for name, panel in self.tool_panels.items():
+            try:
+                panel.Hide()
+                panel.Enable(False)
+            except Exception:
+                pass
+
+        # ensure requested tool exists
+        panel = self.tool_panels.get(tool_name)
+        if panel is None:
+            wx.MessageBox(f"ツールが見つかりません: {tool_name}", "エラー", wx.OK | wx.ICON_ERROR)
+            return
+
+        # load URL if not yet loaded
+        url = self.cfg.get(tool_name)
+        loaded = self.tool_loaded.get(tool_name, False)
+        if url and not loaded:
+            try:
+                if not url.startswith("http"):
+                    url = "http://" + url
+                w = self.tool_webviews.get(tool_name)
+                if w is not None:
+                    w.LoadURL(url)
+                self.tool_loaded[tool_name] = True
+            except Exception:
+                wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
+
+        # show selected panel
+        try:
+            panel.Show()
+            panel.Enable(True)
+        except Exception:
+            pass
+
         # refresh layout
         try:
-            parent = self.sd_panel.GetParent()
+            parent = panel.GetParent()
             if parent is not None:
                 parent.Layout()
         except Exception:
@@ -198,20 +278,15 @@ class MainFrame(wx.Frame):
             if self.current_tool:
                 self.show_tool(self.current_tool)
         else:
-            # update controls with current cfg values then show
-            self.settings_panel.sd_ctrl.SetValue(self.cfg.get("stable_diffusion", ""))
-            self.settings_panel.io_ctrl.SetValue(self.cfg.get("iopaint", ""))
-            # hide webviews while settings is visible
-            try:
-                self.sd_panel.Hide()
-                self.sd_panel.Enable(False)
-            except Exception:
-                pass
-            try:
-                self.io_panel.Hide()
-                self.io_panel.Enable(False)
-            except Exception:
-                pass
+            # update settings panel with current cfg and show it
+            self.settings_panel.build_rows(self.cfg)
+            # hide all webviews while settings is visible
+            for panel in self.tool_panels.values():
+                try:
+                    panel.Hide()
+                    panel.Enable(False)
+                except Exception:
+                    pass
             self.settings_panel.Show()
         # refresh layout on parent containers
         try:
@@ -229,9 +304,10 @@ class MainFrame(wx.Frame):
     def _on_settings_saved(self, newcfg):
         # called by SettingsPanel when user saves
         self.cfg = newcfg
-        # show stable diffusion panel after save (loads if not loaded yet)
-        self.show_tool("stable_diffusion")
-        # hide settings after save and refresh layout
+        # rebuild tool UI from new config
+        self._build_tool_panels(self.cfg)
+        self._build_left_menu(self.splitter.GetWindow1())
+        # hide settings and show first tool
         try:
             self.settings_panel.Hide()
             parent = self.settings_panel.GetParent()
@@ -243,6 +319,10 @@ class MainFrame(wx.Frame):
             self.splitter.Layout()
         except Exception:
             pass
+        # prefer stable_diffusion if present, else first
+        preferred = "stable_diffusion" if "stable_diffusion" in self.cfg else next(iter(self.cfg.keys()), None)
+        if preferred:
+            self.show_tool(preferred)
         self.Layout()
 
     def _on_settings_cancelled(self):
@@ -260,6 +340,10 @@ class MainFrame(wx.Frame):
             pass
         if self.current_tool:
             self.show_tool(self.current_tool)
+        else:
+            first = next(iter(self.cfg.keys()), None)
+            if first:
+                self.show_tool(first)
 
 
 def main():
