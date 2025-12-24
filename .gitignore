@@ -1,0 +1,5 @@
+venv
+docs
+.vscode
+__pycache__
+aitools_ide_config.json
