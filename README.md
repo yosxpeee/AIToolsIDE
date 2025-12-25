@@ -3,9 +3,15 @@
 ローカルで動いている Web ベースのツール（例: Stable Diffusion WebUI、IOPaint など）を
 1つのデスクトップアプリケーションにまとめる小さな GUI アプリです。
 
-## セットアップ（Windows 想定）
+## 動作条件
 
-1. Python 3.8+ を用意してください（プロジェクトは Python 仮想環境での実行を推奨）。
+OS：Windows 11  
+Python のバージョン： 3.14 (でしか動作確認していません)  
+画面サイズ：1440x900 以上  
+
+## セットアップ
+
+1. Python 3.14 を用意してください（プロジェクトは Python 仮想環境での実行を推奨）。
 2. 任意で仮想環境を作成・有効化:
 
 ```powershell
@@ -32,11 +38,12 @@ python run.py
 以下のようなフォーマットになっています。
 ```json
 {
-	"stable_diffusion": { "name": "Stable Diffusion WebUI", "url": "http://127.0.0.1:7861" },
+	"stable_diffusion": { "name": "Stable Diffusion", "url": "http://127.0.0.1:7861" },
 	"iopaint": { "name": "IOPaint", "url": "http://127.0.0.1:8888" }
 }
 ```
-- キー（例: `stable_diffusion`）は内部識別用です。キーが存在しない場合は最初のエントリが選択されます。
+- キー（例: `stable_diffusion`）は内部識別用です。  
+これは設定画面から名前を入力した際に自動的に作られます。2バイト文字は入れないでください。
 - `name` がボタンラベルになっています。設定された内容をそのまま表示します。
 - 表示したいツールのURLを `url` に入力してください。
 

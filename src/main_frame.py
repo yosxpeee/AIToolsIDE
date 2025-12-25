@@ -100,6 +100,7 @@ class MainFrame(wx.Frame):
         if first:
             self.show_tool(first)
         left.SetMinSize((220, -1))
+        self.SetMinSize((1400, 900))
 
     def load_url(self, url: str):
         if not url:
