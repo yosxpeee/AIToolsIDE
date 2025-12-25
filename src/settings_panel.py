@@ -25,6 +25,18 @@ class SettingsPanel(wx.Panel):
             s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
         except Exception:
             pass
+        self.mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.mode_radio_title = wx.StaticText(self, label="テーマ: ")
+        self.mode_radio_light = wx.RadioButton(self, wx.ID_ANY, 'ライト', style=wx.RB_GROUP)
+        self.mode_radio_dark = wx.RadioButton(self, wx.ID_ANY, 'ダーク')
+        if self.cfg["webview_theme"] == "dark":
+            self.mode_radio_dark.SetValue(True)
+        else:
+            self.mode_radio_light.SetValue(True)
+        self.mode_sizer.Add(self.mode_radio_title)
+        self.mode_sizer.Add(self.mode_radio_light, flag=wx.GROW)
+        self.mode_sizer.Add(self.mode_radio_dark, flag=wx.GROW)
+        s.Add(self.mode_sizer, 0, wx.LEFT, 8)
         # area to list editable tool rows
         self.list_panel = wx.Panel(self)
         self.list_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -39,7 +51,7 @@ class SettingsPanel(wx.Panel):
         self.SetSizer(s)
         btn_add.Bind(wx.EVT_BUTTON, self._on_add_row)
         self.rows = []  # list of (name_ctrl, url_ctrl, remove_btn, container)
-        self.build_rows(self.cfg)
+        self.build_rows(self.cfg["menu_items"])
 
     def build_rows(self, cfg: dict):
         # clear existing
@@ -79,13 +91,18 @@ class SettingsPanel(wx.Panel):
 
     def on_save_clicked(self, event):
         newcfg = {}
+        if self.mode_radio_light.GetValue() == True:
+            newcfg["webview_theme"] = "light"
+        else:
+            newcfg["webview_theme"] = "dark"
+        newcfg["menu_items"] = {}
         for name_ctrl, url_ctrl, _, _ in self.rows:
             name = name_ctrl.GetValue().strip()
             url = url_ctrl.GetValue().strip()
             if not name:
                 continue
             key = name.lower().replace(" ", "_")
-            newcfg[key] = {"name": name, "url": url}
+            newcfg["menu_items"][key] = {"name": name, "url": url}
         if not newcfg:
             wx.MessageBox("ツールが一つも設定されていません。", "エラー", wx.OK | wx.ICON_ERROR)
             return

@@ -1,6 +1,9 @@
 """wxPython GUI for AIToolsIDE: left menu + WebView + settings dialog."""
 import wx
 import wx.html2
+import os
+import sys
+import subprocess
 from . import config
 from .settings_panel import SettingsPanel
 
@@ -8,7 +11,7 @@ APP_VERSION = "v0.1"
 
 class MainFrame(wx.Frame):
     def __init__(self, cfg):
-        super().__init__(None, title=f"AI Tools IDE {APP_VERSION}", size=(1440, 900))
+        super().__init__(None, title=f"AI Tools IDE {APP_VERSION}", size=(1440, 900), pos=(0,0))
         self.cfg = cfg
         self.current_tool = None
         # use a plain panel with a horizontal BoxSizer instead of SplitterWindow
@@ -93,7 +96,7 @@ class MainFrame(wx.Frame):
         # build left menu buttons from cfg
         self._build_left_menu(left_content)
         # show first tool by default
-        first = next(iter(self.cfg.keys()), None)
+        first = next(iter(self.cfg["menu_items"].keys()), None)
         if first:
             self.show_tool(first)
         left.SetMinSize((220, -1))
@@ -127,10 +130,14 @@ class MainFrame(wx.Frame):
         self.tool_loaded.clear()
 
     def _build_tool_panels(self, cfg: dict):
+        if cfg["webview_theme"] == "dark":
+            os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--force-dark-mode"
+        else:
+            os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = ""
         # clear any existing
         self._clear_tool_panels()
         # create a panel+webview per configured tool and add to right_sizer
-        for key, entry in cfg.items():
+        for key, entry in cfg["menu_items"].items():
             # expect entry to be dict {name,url}
             url = entry.get("url", "")
             panel = wx.Panel(self.right)
@@ -200,7 +207,7 @@ class MainFrame(wx.Frame):
                 except Exception:
                     pass
             # choose panel to show
-            target = self.current_tool or next(iter(self.cfg.keys()), None)
+            target = self.current_tool or next(iter(self.cfg["menu_items"].keys()), None)
             if target and target in self.tool_panels:
                 try:
                     self.tool_panels[target].Show()
@@ -233,7 +240,7 @@ class MainFrame(wx.Frame):
         # clear stored buttons
         self.tool_buttons.clear()
         # create buttons for each tool
-        for key, entry in self.cfg.items():
+        for key, entry in self.cfg["menu_items"].items():
             # display name from entry['name']
             label = entry.get("name", key)
             # use ToggleButton so it can show a pressed (depressed) state
@@ -287,7 +294,7 @@ class MainFrame(wx.Frame):
             wx.MessageBox(f"ツールが見つかりません: {tool_name}", "エラー", wx.OK | wx.ICON_ERROR)
             return
         # load URL if not yet loaded
-        entry = self.cfg.get(tool_name)
+        entry = self.cfg["menu_items"].get(tool_name)
         # expect dict
         url = entry.get("url")
         loaded = self.tool_loaded.get(tool_name, False)
@@ -334,7 +341,7 @@ class MainFrame(wx.Frame):
             except Exception:
                 self._saved_tool = None
             # update settings panel with current cfg and show it
-            self.settings_panel.build_rows(self.cfg)
+            self.settings_panel.build_rows(self.cfg["menu_items"])
             # hide all webviews while settings is visible
             self._show_settings_ui()
             # bind bottom buttons to settings actions
@@ -375,6 +382,7 @@ class MainFrame(wx.Frame):
         self.Layout()
 
     def _on_settings_saved(self, newcfg):
+        theme_changed = newcfg["webview_theme"] != self.cfg["webview_theme"]
         # called by SettingsPanel when user saves
         self.cfg = newcfg
         # rebuild tool UI from new config
@@ -395,7 +403,7 @@ class MainFrame(wx.Frame):
         except Exception:
             pass
         # prefer stable_diffusion if present, else first
-        preferred = "stable_diffusion" if "stable_diffusion" in self.cfg else next(iter(self.cfg.keys()), None)
+        preferred = "stable_diffusion" if "stable_diffusion" in self.cfg["menu_items"] else next(iter(self.cfg["menu_items"].keys()), None)
         if preferred:
             self.show_tool(preferred)
         # clear settings toggle state
@@ -411,6 +419,9 @@ class MainFrame(wx.Frame):
         except Exception:
             pass
         self.Layout()
+        if theme_changed:
+            subprocess.Popen([sys.executable] + sys.argv)
+            wx.GetApp().ExitMainLoop()
 
     def _on_settings_cancelled(self):
         # hide settings and restore previously selected tool
@@ -426,7 +437,7 @@ class MainFrame(wx.Frame):
         # will proceed to switch to the requested tool. If no caller
         # chooses a tool, restore previous/current selection below.
         if not self.current_tool:
-            first = next(iter(self.cfg.keys()), None)
+            first = next(iter(self.cfg["menu_items"].keys()), None)
             if first:
                 self.current_tool = first
         # if we saved a previous tool before opening settings, restore it
