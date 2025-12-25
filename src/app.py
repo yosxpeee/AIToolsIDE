@@ -65,14 +65,16 @@ class MainFrame(wx.Frame):
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         # area to contain tool buttons (rebuildable)
         self.tools_sizer = wx.BoxSizer(wx.VERTICAL)
+        # map of tool key -> toggle button so we can update selected state
+        self.tool_buttons = {}
         left_sizer.Add(self.tools_sizer, 0, wx.EXPAND | wx.ALL, 6)
         left_sizer.AddStretchSpacer()
 
         # put left_sizer into a content panel so we can add a vertical StaticLine beside it
         left_content = wx.Panel(left)
-        # create settings button as child of left_content so sizer parents match
-        btn_settings = wx.Button(left_content, label="設定")
-        left_sizer.Add(btn_settings, 0, wx.EXPAND | wx.ALL, 6)
+        # create settings toggle button as child of left_content so sizer parents match
+        self.btn_settings = wx.ToggleButton(left_content, label="設定")
+        left_sizer.Add(self.btn_settings, 0, wx.EXPAND | wx.ALL, 6)
         left_content.SetSizer(left_sizer)
         # keep reference so other methods can rebuild the left menu
         self.left_content = left_content
@@ -82,7 +84,8 @@ class MainFrame(wx.Frame):
         outer_left.Add(sep, 0, wx.EXPAND)
         left.SetSizer(outer_left)
 
-        btn_settings.Bind(wx.EVT_BUTTON, self.on_settings)
+        # bind toggle event for settings button
+        self.btn_settings.Bind(wx.EVT_TOGGLEBUTTON, self.on_settings)
         # build left menu buttons from cfg
         self._build_left_menu(left_content)
         # show first tool by default
@@ -230,14 +233,18 @@ class MainFrame(wx.Frame):
             widget = child.GetWindow()
             if widget:
                 widget.Destroy()
+        # clear stored buttons
+        self.tool_buttons.clear()
         # create buttons for each tool
         for key, entry in self.cfg.items():
             # display name from entry['name']
             label = entry.get("name", key)
-            btn = wx.Button(left_panel, label=label)
+            # use ToggleButton so it can show a pressed (depressed) state
+            btn = wx.ToggleButton(left_panel, label=label)
             btn.SetMinSize((200, 36))
             self.tools_sizer.Add(btn, 0, wx.EXPAND | wx.ALL, 6)
-            btn.Bind(wx.EVT_BUTTON, lambda e, k=key: self.show_tool(k))
+            btn.Bind(wx.EVT_TOGGLEBUTTON, lambda e, k=key: self.show_tool(k))
+            self.tool_buttons[key] = btn
         # refresh
         left_panel.Layout()
 
@@ -253,6 +260,24 @@ class MainFrame(wx.Frame):
 
         # remember current tool so we can restore after closing settings
         self.current_tool = tool_name
+        # update toggle buttons: set pressed state for selected, clear others
+        try:
+            for name, btn in self.tool_buttons.items():
+                try:
+                    btn.SetValue(name == tool_name)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # ensure settings toggle is cleared when a tool is selected
+        try:
+            if hasattr(self, 'btn_settings'):
+                try:
+                    self.btn_settings.SetValue(False)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # hide all tool panels
         for name, panel in self.tool_panels.items():
             try:
@@ -304,14 +329,19 @@ class MainFrame(wx.Frame):
         self.Layout()
 
     def on_settings(self, event):
-        # toggle visibility of in-frame settings panel
-        if self.settings_panel.IsShown():
-            # hide settings and restore tool UI
-            self.settings_panel.Hide()
-            self._show_tool_ui()
-            if self.current_tool:
-                self.show_tool(self.current_tool)
-        else:
+        # toggle visibility of in-frame settings panel via settings ToggleButton
+        is_on = False
+        try:
+            is_on = bool(self.btn_settings.GetValue())
+        except Exception:
+            pass
+
+        if is_on:
+            # remember currently selected tool so Cancel can restore it
+            try:
+                self._saved_tool = self.current_tool
+            except Exception:
+                self._saved_tool = None
             # update settings panel with current cfg and show it
             self.settings_panel.build_rows(self.cfg)
             # hide all webviews while settings is visible
@@ -319,6 +349,27 @@ class MainFrame(wx.Frame):
             # bind bottom buttons to settings actions
             self.btn_save.Bind(wx.EVT_BUTTON, lambda e: self.settings_panel.on_save_clicked(e))
             self.btn_cancel.Bind(wx.EVT_BUTTON, lambda e: self.settings_panel.trigger_cancel())
+            # clear any pressed tool buttons
+            try:
+                for btn in self.tool_buttons.values():
+                    try:
+                        btn.SetValue(False)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        else:
+            # hide settings and restore tool UI
+            try:
+                self.settings_panel.Hide()
+            except Exception:
+                pass
+            try:
+                self._show_tool_ui()
+            except Exception:
+                pass
+            if self.current_tool:
+                self.show_tool(self.current_tool)
         # refresh layout on parent containers
         try:
             parent = self.settings_panel.GetParent()
@@ -356,6 +407,18 @@ class MainFrame(wx.Frame):
         preferred = "stable_diffusion" if "stable_diffusion" in self.cfg else next(iter(self.cfg.keys()), None)
         if preferred:
             self.show_tool(preferred)
+        # clear settings toggle state
+        try:
+            if hasattr(self, 'btn_settings'):
+                self.btn_settings.SetValue(False)
+        except Exception:
+            pass
+        # clear saved tool marker
+        try:
+            if hasattr(self, '_saved_tool'):
+                self._saved_tool = None
+        except Exception:
+            pass
         self.Layout()
 
     def _on_settings_cancelled(self):
@@ -375,6 +438,31 @@ class MainFrame(wx.Frame):
             first = next(iter(self.cfg.keys()), None)
             if first:
                 self.current_tool = first
+        # if we saved a previous tool before opening settings, restore it
+        try:
+            saved = getattr(self, '_saved_tool', None)
+            if saved:
+                self.current_tool = saved
+        except Exception:
+            pass
+        # ensure settings toggle cleared
+        try:
+            if hasattr(self, 'btn_settings'):
+                self.btn_settings.SetValue(False)
+        except Exception:
+            pass
+        # after restoring, show the restored tool (if any)
+        try:
+            if self.current_tool:
+                self.show_tool(self.current_tool)
+        except Exception:
+            pass
+        # clear saved tool marker
+        try:
+            if hasattr(self, '_saved_tool'):
+                self._saved_tool = None
+        except Exception:
+            pass
 
 
 def main():
