@@ -12,9 +12,21 @@ class MainFrame(wx.Frame):
         self.cfg = cfg
         self.current_tool = None
 
-        self.splitter = wx.SplitterWindow(self)
+        # use a plain panel with a horizontal BoxSizer instead of SplitterWindow
+        # so there is no sash to drag/double-click and no cursor change.
+        self.splitter = wx.Panel(self)
+        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
         left = wx.Panel(self.splitter)
         right = wx.Panel(self.splitter)
+        content_sizer.Add(left, 0, wx.EXPAND)
+        content_sizer.Add(right, 1, wx.EXPAND)
+        # enforce fixed left width so menu doesn't change size on interactions
+        try:
+            left.SetMinSize((220, -1))
+            left.SetMaxSize((220, -1))
+        except Exception:
+            pass
+        self.splitter.SetSizer(content_sizer)
 
         # Right side will contain settings panel (top) and webview (fill)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -59,7 +71,7 @@ class MainFrame(wx.Frame):
         except Exception:
             pass
 
-        self.splitter.SplitVertically(left, right, sashPosition=220)
+        # left/right panels are laid out by the content_sizer above (fixed left width)
 
         # build left side: tools list in a content panel, with a vertical separator at its right
         left_sizer = wx.BoxSizer(wx.VERTICAL)

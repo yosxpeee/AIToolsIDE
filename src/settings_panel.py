@@ -12,6 +12,23 @@ class SettingsPanel(wx.Panel):
 
         s = wx.BoxSizer(wx.VERTICAL)
 
+        # header label
+        try:
+            header = wx.StaticText(self, label="設定")
+            f = header.GetFont()
+            try:
+                f.SetPointSize(f.GetPointSize() + 2)
+            except Exception:
+                pass
+            try:
+                f.SetWeight(wx.FONTWEIGHT_BOLD)
+            except Exception:
+                pass
+            header.SetFont(f)
+            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
+        except Exception:
+            pass
+
         # area to list editable tool rows
         self.list_panel = wx.Panel(self)
         self.list_sizer = wx.BoxSizer(wx.VERTICAL)
