@@ -6,8 +6,8 @@ app = wx.App()
 frame = wx.Frame(
     parent=None,
     id=-1,
-    title='AI Tools IDE v0.1',
-    size=(400, 400)
+    title='wxpython',
+    size=(640, 480)
 )
 frame.Show()
 app.SetTopWindow(frame)

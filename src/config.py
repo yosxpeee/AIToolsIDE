@@ -7,8 +7,7 @@ CONFIG_PATH = Path.home() / '.aitools_ide_config.json'
 PROJECT_CONFIG = Path(__file__).resolve().parents[1] / 'aitools_ide_config.json'
 
 DEFAULT = {
-    "stable_diffusion": {"name": "Stable Diffusion WebUI", "url": "http://127.0.0.1:7861"},
-    "comfyui": {"name": "ComfyUI", "url": "http://127.0.0.1:8188"}
+    "stable_diffusion": {"name": "Stable Diffusion WebUI", "url": "http://127.0.0.1:7860"}
 }
 
 def load():
