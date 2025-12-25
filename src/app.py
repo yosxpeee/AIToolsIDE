@@ -32,6 +32,7 @@ class MainFrame(wx.Frame):
         # dynamic tool panels will be created from cfg
         self.tool_panels = {}
         self.tool_webviews = {}
+        self.tool_url_ctrls = {}
         self.tool_loaded = {}
 
         # store right references so helper methods can modify layout
@@ -128,14 +129,30 @@ class MainFrame(wx.Frame):
             url = entry.get("url", "")
             panel = wx.Panel(self.right)
             s = wx.BoxSizer(wx.VERTICAL)
+
+            # top bar: refresh button + url field
+            top_bar = wx.Panel(panel)
+            top_s = wx.BoxSizer(wx.HORIZONTAL)
+            btn_refresh = wx.Button(top_bar, label="⟳", size=(24,24))
+            # URL display is readonly; users can copy but not edit here
+            url_ctrl = wx.TextCtrl(top_bar, value=url, style=wx.TE_READONLY)
+            top_s.Add(btn_refresh, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+            top_s.Add(url_ctrl, 1, wx.EXPAND)
+            top_bar.SetSizer(top_s)
+
             web = wx.html2.WebView.New(panel)
+            s.Add(top_bar, 0, wx.EXPAND | wx.ALL, 6)
             s.Add(web, 1, wx.EXPAND)
             panel.SetSizer(s)
             panel.Hide()
             self.right_sizer.Add(panel, 1, wx.EXPAND)
             self.tool_panels[key] = panel
             self.tool_webviews[key] = web
+            self.tool_url_ctrls[key] = url_ctrl
             self.tool_loaded[key] = False
+
+            # bind refresh button to reload the shown URL (TextCtrl is readonly)
+            btn_refresh.Bind(wx.EVT_BUTTON, lambda e, k=key: self._load_url_into_tool(k, self.tool_url_ctrls[k].GetValue()))
 
     def _show_settings_ui(self):
         # show settings container and hide tool panels so settings takes full area
@@ -193,6 +210,19 @@ class MainFrame(wx.Frame):
             self.splitter.Layout()
         except Exception:
             pass
+
+    def _load_url_into_tool(self, key: str, url: str):
+        if not url:
+            return
+        if not url.startswith("http"):
+            url = "http://" + url
+        try:
+            w = self.tool_webviews.get(key)
+            if w is not None:
+                w.LoadURL(url)
+                self.tool_loaded[key] = True
+        except Exception:
+            wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
 
     def _build_left_menu(self, left_panel):
         # clear existing children in tools_sizer
