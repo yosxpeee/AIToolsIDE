@@ -20,23 +20,17 @@ class SettingsPanel(wx.Panel):
 
         s.Add(self.list_panel, 1, wx.ALL | wx.EXPAND, 8)
 
-        # add / save / cancel controls at bottom
+        # add controls: only "追加" stays inside the settings content
         ctl_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_add = wx.Button(self, label="追加")
         ctl_sizer.Add(btn_add, 0, wx.RIGHT, 6)
         ctl_sizer.AddStretchSpacer()
-        btn_save = wx.Button(self, label="保存")
-        btn_cancel = wx.Button(self, label="キャンセル")
-        ctl_sizer.Add(btn_save, 0, wx.RIGHT, 6)
-        ctl_sizer.Add(btn_cancel, 0)
 
         s.Add(ctl_sizer, 0, wx.EXPAND | wx.ALL, 8)
 
         self.SetSizer(s)
 
         btn_add.Bind(wx.EVT_BUTTON, self._on_add_row)
-        btn_save.Bind(wx.EVT_BUTTON, self.on_save_clicked)
-        btn_cancel.Bind(wx.EVT_BUTTON, self.on_cancel_clicked)
 
         self.rows = []  # list of (name_ctrl, url_ctrl, remove_btn, container)
         self.build_rows(self.cfg)
@@ -47,7 +41,10 @@ class SettingsPanel(wx.Panel):
             cont.Destroy()
         self.rows.clear()
 
-        for name, url in cfg.items():
+        for key, entry in cfg.items():
+            # expect entry to be dict {name, url}
+            name = entry.get("name", key)
+            url = entry.get("url", "")
             self._create_row(name, url)
 
     def _create_row(self, name: str = "", url: str = ""):
@@ -76,7 +73,6 @@ class SettingsPanel(wx.Panel):
     def _on_add_row(self, event):
         self._create_row("", "")
         self.Layout()
-
     def on_save_clicked(self, event):
         newcfg = {}
         for name_ctrl, url_ctrl, _, _ in self.rows:
@@ -85,15 +81,19 @@ class SettingsPanel(wx.Panel):
             if not name:
                 continue
             key = name.lower().replace(" ", "_")
-            newcfg[key] = url
+            newcfg[key] = {"name": name, "url": url}
         if not newcfg:
             wx.MessageBox("ツールが一つも設定されていません。", "エラー", wx.OK | wx.ICON_ERROR)
             return
-        config.save(newcfg)
+        try:
+            config.save(newcfg)
+        except Exception:
+            wx.MessageBox("設定の保存に失敗しました。", "エラー", wx.OK | wx.ICON_ERROR)
+            return
         if callable(self.on_save):
             self.on_save(newcfg)
-
-    def on_cancel_clicked(self, event):
+    # note: save/cancel buttons are managed by MainFrame's bottom bar
+    def trigger_cancel(self):
         if callable(self.on_cancel):
             self.on_cancel()
         else:
@@ -102,7 +102,7 @@ class SettingsPanel(wx.Panel):
 
 class MainFrame(wx.Frame):
     def __init__(self, cfg):
-        super().__init__(None, title="AIToolsIDE", size=(1200, 800))
+        super().__init__(None, title="AIToolsIDE", size=(1440, 900))
         self.cfg = cfg
         self.current_tool = None
 
@@ -112,10 +112,16 @@ class MainFrame(wx.Frame):
 
         # Right side will contain settings panel (top) and webview (fill)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.settings_panel = SettingsPanel(right, cfg, on_save=self._on_settings_saved, on_cancel=self._on_settings_cancelled)
+        # wrap settings in a bordered container so it has a visible border
+        settings_container = wx.Panel(right, style=wx.BORDER_SIMPLE)
+        settings_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.settings_panel = SettingsPanel(settings_container, cfg, on_save=self._on_settings_saved, on_cancel=self._on_settings_cancelled)
         self.settings_panel.Hide()
+        settings_sizer.Add(self.settings_panel, 1, wx.EXPAND)
+        settings_container.SetSizer(settings_sizer)
+        self.settings_container = settings_container
         # let settings occupy the full right area when shown
-        right_sizer.Add(self.settings_panel, 1, wx.EXPAND)
+        right_sizer.Add(settings_container, 1, wx.EXPAND | wx.ALL, 6)
 
         # dynamic tool panels will be created from cfg
         self.tool_panels = {}
@@ -125,24 +131,53 @@ class MainFrame(wx.Frame):
         # store right references so helper methods can modify layout
         self.right = right
         self.right_sizer = right_sizer
+        # bottom buttons for settings (Save / Cancel) — outside the settings panel
+        self.settings_button_panel = wx.Panel(right)
+        btn_bar = wx.BoxSizer(wx.HORIZONTAL)
+        btn_bar.AddStretchSpacer()
+        self.btn_save = wx.Button(self.settings_button_panel, label="保存")
+        self.btn_cancel = wx.Button(self.settings_button_panel, label="キャンセル")
+        btn_bar.Add(self.btn_save, 0, wx.RIGHT, 6)
+        btn_bar.Add(self.btn_cancel, 0)
+        self.settings_button_panel.SetSizer(btn_bar)
+        # add to right_sizer (fixed at bottom)
+        right_sizer.Add(self.settings_button_panel, 0, wx.EXPAND | wx.ALL, 8)
         # placeholder: create panels for each configured tool
         self._build_tool_panels(self.cfg)
         right.SetSizer(right_sizer)
+        # initially hide settings UI and its button panel so webviews occupy space
+        try:
+            self.right_sizer.Hide(self.settings_container)
+            self.right_sizer.Hide(self.settings_button_panel)
+        except Exception:
+            pass
 
         self.splitter.SplitVertically(left, right, sashPosition=220)
 
+        # build left side: tools list in a content panel, with a vertical separator at its right
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         # area to contain tool buttons (rebuildable)
         self.tools_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(self.tools_sizer, 0, wx.EXPAND | wx.ALL, 6)
         left_sizer.AddStretchSpacer()
-        btn_settings = wx.Button(left, label="設定")
+
+        # put left_sizer into a content panel so we can add a vertical StaticLine beside it
+        left_content = wx.Panel(left)
+        # create settings button as child of left_content so sizer parents match
+        btn_settings = wx.Button(left_content, label="設定")
         left_sizer.Add(btn_settings, 0, wx.EXPAND | wx.ALL, 6)
-        left.SetSizer(left_sizer)
+        left_content.SetSizer(left_sizer)
+        # keep reference so other methods can rebuild the left menu
+        self.left_content = left_content
+        outer_left = wx.BoxSizer(wx.HORIZONTAL)
+        outer_left.Add(left_content, 1, wx.EXPAND)
+        sep = wx.StaticLine(left, style=wx.LI_VERTICAL)
+        outer_left.Add(sep, 0, wx.EXPAND)
+        left.SetSizer(outer_left)
 
         btn_settings.Bind(wx.EVT_BUTTON, self.on_settings)
         # build left menu buttons from cfg
-        self._build_left_menu(left)
+        self._build_left_menu(left_content)
         # show first tool by default
         first = next(iter(self.cfg.keys()), None)
         if first:
@@ -182,7 +217,9 @@ class MainFrame(wx.Frame):
         # clear any existing
         self._clear_tool_panels()
         # create a panel+webview per configured tool and add to right_sizer
-        for key, url in cfg.items():
+        for key, entry in cfg.items():
+            # expect entry to be dict {name,url}
+            url = entry.get("url", "")
             panel = wx.Panel(self.right)
             s = wx.BoxSizer(wx.VERTICAL)
             web = wx.html2.WebView.New(panel)
@@ -194,6 +231,63 @@ class MainFrame(wx.Frame):
             self.tool_webviews[key] = web
             self.tool_loaded[key] = False
 
+    def _show_settings_ui(self):
+        # show settings container and hide tool panels so settings takes full area
+        try:
+            for panel in self.tool_panels.values():
+                try:
+                    panel.Hide()
+                except Exception:
+                    pass
+            self.settings_container.Show()
+            # ensure settings panel itself is visible and laid out
+            try:
+                self.settings_panel.Show()
+                self.settings_panel.Layout()
+            except Exception:
+                pass
+            self.settings_button_panel.Show()
+            self.right.Layout()
+            self.splitter.Layout()
+        except Exception:
+            pass
+
+    def _show_tool_ui(self):
+        # show only the currently selected tool panel and hide settings container/button panel
+        try:
+            try:
+                self.settings_panel.Hide()
+            except Exception:
+                pass
+            try:
+                self.settings_container.Hide()
+            except Exception:
+                pass
+            try:
+                self.settings_button_panel.Hide()
+            except Exception:
+                pass
+
+            # hide all panels first
+            for key, panel in self.tool_panels.items():
+                try:
+                    panel.Hide()
+                except Exception:
+                    pass
+
+            # choose panel to show
+            target = self.current_tool or next(iter(self.cfg.keys()), None)
+            if target and target in self.tool_panels:
+                try:
+                    self.tool_panels[target].Show()
+                except Exception:
+                    pass
+
+            self.right.Layout()
+            self.splitter.Layout()
+        except Exception:
+            pass
+
     def _build_left_menu(self, left_panel):
         # clear existing children in tools_sizer
         for child in list(self.tools_sizer.GetChildren()):
@@ -201,8 +295,9 @@ class MainFrame(wx.Frame):
             if widget:
                 widget.Destroy()
         # create buttons for each tool
-        for key in self.cfg.keys():
-            label = key.replace('_', ' ').title()
+        for key, entry in self.cfg.items():
+            # display name from entry['name']
+            label = entry.get("name", key)
             btn = wx.Button(left_panel, label=label)
             btn.SetMinSize((200, 36))
             self.tools_sizer.Add(btn, 0, wx.EXPAND | wx.ALL, 6)
@@ -215,8 +310,8 @@ class MainFrame(wx.Frame):
         # close settings and restore the previously selected tool.
         try:
             if self.settings_panel.IsShown():
+                # close settings first, but continue to switch to the requested tool
                 self._on_settings_cancelled()
-                return
         except Exception:
             pass
 
@@ -237,7 +332,9 @@ class MainFrame(wx.Frame):
             return
 
         # load URL if not yet loaded
-        url = self.cfg.get(tool_name)
+        entry = self.cfg.get(tool_name)
+        # expect dict
+        url = entry.get("url")
         loaded = self.tool_loaded.get(tool_name, False)
         if url and not loaded:
             try:
@@ -273,21 +370,19 @@ class MainFrame(wx.Frame):
     def on_settings(self, event):
         # toggle visibility of in-frame settings panel
         if self.settings_panel.IsShown():
-            # hide settings and restore previously selected tool
+            # hide settings and restore tool UI
             self.settings_panel.Hide()
+            self._show_tool_ui()
             if self.current_tool:
                 self.show_tool(self.current_tool)
         else:
             # update settings panel with current cfg and show it
             self.settings_panel.build_rows(self.cfg)
             # hide all webviews while settings is visible
-            for panel in self.tool_panels.values():
-                try:
-                    panel.Hide()
-                    panel.Enable(False)
-                except Exception:
-                    pass
-            self.settings_panel.Show()
+            self._show_settings_ui()
+            # bind bottom buttons to settings actions
+            self.btn_save.Bind(wx.EVT_BUTTON, lambda e: self.settings_panel.on_save_clicked(e))
+            self.btn_cancel.Bind(wx.EVT_BUTTON, lambda e: self.settings_panel.trigger_cancel())
         # refresh layout on parent containers
         try:
             parent = self.settings_panel.GetParent()
@@ -306,17 +401,19 @@ class MainFrame(wx.Frame):
         self.cfg = newcfg
         # rebuild tool UI from new config
         self._build_tool_panels(self.cfg)
-        self._build_left_menu(self.splitter.GetWindow1())
-        # hide settings and show first tool
+        # rebuild left menu using the saved left content panel
+        try:
+            self._build_left_menu(self.left_content)
+        except Exception:
+            # fallback to splitter left window if left_content missing
+            self._build_left_menu(self.splitter.GetWindow1())
+        # hide settings and restore tool UI
         try:
             self.settings_panel.Hide()
-            parent = self.settings_panel.GetParent()
-            if parent is not None:
-                parent.Layout()
         except Exception:
             pass
         try:
-            self.splitter.Layout()
+            self._show_tool_ui()
         except Exception:
             pass
         # prefer stable_diffusion if present, else first
@@ -329,21 +426,19 @@ class MainFrame(wx.Frame):
         # hide settings and restore previously selected tool
         try:
             self.settings_panel.Hide()
-            parent = self.settings_panel.GetParent()
-            if parent is not None:
-                parent.Layout()
         except Exception:
             pass
         try:
-            self.splitter.Layout()
+            self._show_tool_ui()
         except Exception:
             pass
-        if self.current_tool:
-            self.show_tool(self.current_tool)
-        else:
+        # do NOT automatically call show_tool here; caller (e.g. show_tool)
+        # will proceed to switch to the requested tool. If no caller
+        # chooses a tool, restore previous/current selection below.
+        if not self.current_tool:
             first = next(iter(self.cfg.keys()), None)
             if first:
-                self.show_tool(first)
+                self.current_tool = first
 
 
 def main():
