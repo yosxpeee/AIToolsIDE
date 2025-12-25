@@ -27,9 +27,7 @@ python run.py
 
 ## 設定ファイル
 
-アプリは設定を次の順で読み込みます:
-- プロジェクト（リポジトリ）ルートの `aitools_ide_config.json` を優先
-- 存在しない場合はユーザーのホームに `~/.aitools_ide_config.json` を使用
+アプリは設定ファイルとしてプロジェクト（リポジトリ）ルートの `aitools_ide_config.json` を読み込みます。
 
 以下のようなフォーマットになっています。
 ```json
