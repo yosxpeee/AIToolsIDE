@@ -11,7 +11,6 @@ class MainFrame(wx.Frame):
         super().__init__(None, title=f"AI Tools IDE {APP_VERSION}", size=(1440, 900))
         self.cfg = cfg
         self.current_tool = None
-
         # use a plain panel with a horizontal BoxSizer instead of SplitterWindow
         # so there is no sash to drag/double-click and no cursor change.
         self.splitter = wx.Panel(self)
@@ -27,7 +26,6 @@ class MainFrame(wx.Frame):
         except Exception:
             pass
         self.splitter.SetSizer(content_sizer)
-
         # Right side will contain settings panel (top) and webview (fill)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
         # wrap settings in a bordered container so it has a visible border
@@ -40,13 +38,11 @@ class MainFrame(wx.Frame):
         self.settings_container = settings_container
         # let settings occupy the full right area when shown
         right_sizer.Add(settings_container, 1, wx.EXPAND | wx.ALL, 6)
-
         # dynamic tool panels will be created from cfg
         self.tool_panels = {}
         self.tool_webviews = {}
         self.tool_url_ctrls = {}
         self.tool_loaded = {}
-
         # store right references so helper methods can modify layout
         self.right = right
         self.right_sizer = right_sizer
@@ -70,9 +66,7 @@ class MainFrame(wx.Frame):
             self.right_sizer.Hide(self.settings_button_panel)
         except Exception:
             pass
-
         # left/right panels are laid out by the content_sizer above (fixed left width)
-
         # build left side: tools list in a content panel, with a vertical separator at its right
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         # area to contain tool buttons (rebuildable)
@@ -81,7 +75,6 @@ class MainFrame(wx.Frame):
         self.tool_buttons = {}
         left_sizer.Add(self.tools_sizer, 0, wx.EXPAND | wx.ALL, 6)
         left_sizer.AddStretchSpacer()
-
         # put left_sizer into a content panel so we can add a vertical StaticLine beside it
         left_content = wx.Panel(left)
         # create settings toggle button as child of left_content so sizer parents match
@@ -95,7 +88,6 @@ class MainFrame(wx.Frame):
         sep = wx.StaticLine(left, style=wx.LI_VERTICAL)
         outer_left.Add(sep, 0, wx.EXPAND)
         left.SetSizer(outer_left)
-
         # bind toggle event for settings button
         self.btn_settings.Bind(wx.EVT_TOGGLEBUTTON, self.on_settings)
         # build left menu buttons from cfg
@@ -104,7 +96,6 @@ class MainFrame(wx.Frame):
         first = next(iter(self.cfg.keys()), None)
         if first:
             self.show_tool(first)
-
         left.SetMinSize((220, -1))
 
     def load_url(self, url: str):
@@ -144,7 +135,6 @@ class MainFrame(wx.Frame):
             url = entry.get("url", "")
             panel = wx.Panel(self.right)
             s = wx.BoxSizer(wx.VERTICAL)
-
             # top bar: refresh button + url field
             top_bar = wx.Panel(panel)
             top_s = wx.BoxSizer(wx.HORIZONTAL)
@@ -154,7 +144,6 @@ class MainFrame(wx.Frame):
             top_s.Add(btn_refresh, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
             top_s.Add(url_ctrl, 1, wx.EXPAND)
             top_bar.SetSizer(top_s)
-
             web = wx.html2.WebView.New(panel)
             s.Add(top_bar, 0, wx.EXPAND | wx.ALL, 6)
             s.Add(web, 1, wx.EXPAND)
@@ -165,7 +154,6 @@ class MainFrame(wx.Frame):
             self.tool_webviews[key] = web
             self.tool_url_ctrls[key] = url_ctrl
             self.tool_loaded[key] = False
-
             # bind refresh button to reload the shown URL (TextCtrl is readonly)
             btn_refresh.Bind(wx.EVT_BUTTON, lambda e, k=key: self._load_url_into_tool(k, self.tool_url_ctrls[k].GetValue()))
 
@@ -205,14 +193,12 @@ class MainFrame(wx.Frame):
                 self.settings_button_panel.Hide()
             except Exception:
                 pass
-
             # hide all panels first
             for key, panel in self.tool_panels.items():
                 try:
                     panel.Hide()
                 except Exception:
                     pass
-
             # choose panel to show
             target = self.current_tool or next(iter(self.cfg.keys()), None)
             if target and target in self.tool_panels:
@@ -220,7 +206,6 @@ class MainFrame(wx.Frame):
                     self.tool_panels[target].Show()
                 except Exception:
                     pass
-
             self.right.Layout()
             self.splitter.Layout()
         except Exception:
@@ -269,7 +254,6 @@ class MainFrame(wx.Frame):
                 self._on_settings_cancelled()
         except Exception:
             pass
-
         # remember current tool so we can restore after closing settings
         self.current_tool = tool_name
         # update toggle buttons: set pressed state for selected, clear others
@@ -297,13 +281,11 @@ class MainFrame(wx.Frame):
                 panel.Enable(False)
             except Exception:
                 pass
-
         # ensure requested tool exists
         panel = self.tool_panels.get(tool_name)
         if panel is None:
             wx.MessageBox(f"ツールが見つかりません: {tool_name}", "エラー", wx.OK | wx.ICON_ERROR)
             return
-
         # load URL if not yet loaded
         entry = self.cfg.get(tool_name)
         # expect dict
@@ -319,14 +301,12 @@ class MainFrame(wx.Frame):
                 self.tool_loaded[tool_name] = True
             except Exception:
                 wx.MessageBox(f"URLを開けません: {url}", "エラー", wx.OK | wx.ICON_ERROR)
-
         # show selected panel
         try:
             panel.Show()
             panel.Enable(True)
         except Exception:
             pass
-
         # refresh layout
         try:
             parent = panel.GetParent()
@@ -347,7 +327,6 @@ class MainFrame(wx.Frame):
             is_on = bool(self.btn_settings.GetValue())
         except Exception:
             pass
-
         if is_on:
             # remember currently selected tool so Cancel can restore it
             try:
@@ -475,11 +454,3 @@ class MainFrame(wx.Frame):
                 self._saved_tool = None
         except Exception:
             pass
-
-
-def main():
-    cfg = config.load()
-    app = wx.App(False)
-    frame = MainFrame(cfg)
-    frame.Show()
-    app.MainLoop()

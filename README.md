@@ -1,4 +1,4 @@
-# AIToolsIDE (簡易統合ランチャー)
+# AI Tools IDE (簡易統合ランチャー)
 
 ローカルで動いている Web ベースのツール（例: Stable Diffusion WebUI、IOPaint など）を
 1つのデスクトップアプリケーションにまとめる小さな GUI アプリです。

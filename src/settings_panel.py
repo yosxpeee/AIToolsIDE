@@ -2,16 +2,13 @@
 import wx
 from . import config
 
-
 class SettingsPanel(wx.Panel):
     def __init__(self, parent, cfg, on_save=None, on_cancel=None):
         super().__init__(parent)
         self.on_save = on_save
         self.on_cancel = on_cancel
         self.cfg = cfg.copy()
-
         s = wx.BoxSizer(wx.VERTICAL)
-
         # header label
         try:
             header = wx.StaticText(self, label="設定")
@@ -28,26 +25,19 @@ class SettingsPanel(wx.Panel):
             s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
         except Exception:
             pass
-
         # area to list editable tool rows
         self.list_panel = wx.Panel(self)
         self.list_sizer = wx.BoxSizer(wx.VERTICAL)
         self.list_panel.SetSizer(self.list_sizer)
-
         s.Add(self.list_panel, 1, wx.ALL | wx.EXPAND, 8)
-
         # add controls: only "追加" stays inside the settings content
         ctl_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_add = wx.Button(self, label="追加")
         ctl_sizer.Add(btn_add, 0, wx.RIGHT, 6)
         ctl_sizer.AddStretchSpacer()
-
         s.Add(ctl_sizer, 0, wx.EXPAND | wx.ALL, 8)
-
         self.SetSizer(s)
-
         btn_add.Bind(wx.EVT_BUTTON, self._on_add_row)
-
         self.rows = []  # list of (name_ctrl, url_ctrl, remove_btn, container)
         self.build_rows(self.cfg)
 
@@ -56,7 +46,6 @@ class SettingsPanel(wx.Panel):
         for _, _, _, cont in list(self.rows):
             cont.Destroy()
         self.rows.clear()
-
         for key, entry in cfg.items():
             # expect entry to be dict {name, url}
             name = entry.get("name", key)
@@ -76,13 +65,11 @@ class SettingsPanel(wx.Panel):
         hs.Add(btn_rm, 0)
         cont.SetSizer(hs)
         self.list_sizer.Add(cont, 0, wx.EXPAND | wx.BOTTOM, 6)
-
         def on_remove(evt):
             cont.Destroy()
             # remove from rows list
             self.rows[:] = [r for r in self.rows if r[3] is not cont]
             self.Layout()
-
         btn_rm.Bind(wx.EVT_BUTTON, on_remove)
         self.rows.append((name_ctrl, url_ctrl, btn_rm, cont))
 
