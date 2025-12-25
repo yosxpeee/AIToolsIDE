@@ -5,7 +5,7 @@ from pathlib import Path
 PROJECT_CONFIG = Path(__file__).resolve().parents[1] / 'aitools_ide_config.json'
 DEFAULT = {
     "webview_theme": "light",
-    "menu_items": {"stable_diffusion": {"name": "Stable Diffusion WebUI", "url": "http://127.0.0.1:7860"}}
+    "menu_items": {"stable_diffusion": {"name": "Stable Diffusion", "url": "http://127.0.0.1:7860"}}
 }
 
 def load():
