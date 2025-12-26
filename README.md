@@ -13,32 +13,13 @@ Python のバージョン： 3.14 (でしか動作確認していません)
 
 以下いずれかの方法でセットアップしてください。
 
-### 1. そのままpythonスクリプトを実行
+### 1. pythonスクリプトのまま利用する
 
-1. Python 3.14 を用意してください（プロジェクトは Python 仮想環境での実行を推奨）。
-2. 任意で仮想環境を作成・有効化:
+`start.bat` を実行するとpythonスクリプトをそのまま実行します。
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+### 2. EXE化して利用する
 
-3. 依存をインストール:
-
-```powershell
-pip install -r requirements.txt
-```
-
-4. アプリ起動:
-
-```powershell
-python run.py
-```
-
-### 2. EXE化する
-
-「3. 依存をインストール」まではそのままpythonスクリプトを実行する場合と同じです。  
-その後 `deploy.bat` を実行すると、distディレクトリに `AIToolsIDE.exe` が出来上がります。  
+`deploy.bat` を実行すると、distディレクトリに `AIToolsIDE.exe` が出来上がります。  
 お好きな場所に持って行ってexeを実行してください。
 
 ## 設定ファイル
