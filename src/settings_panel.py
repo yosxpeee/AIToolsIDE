@@ -3,45 +3,34 @@ import wx
 from . import config
 
 class SettingsPanel(wx.Panel):
-    def __init__(self, parent, cfg, on_save=None, on_cancel=None):
+    def __init__(self, parent, cfg, conf_path, on_save=None, on_cancel=None):
+        def _create_label(label, up_size):
+            try:
+                header = wx.StaticText(self, label=label)
+                f = header.GetFont()
+                try:
+                    f.SetPointSize(f.GetPointSize() + up_size)
+                except Exception:
+                    pass
+                try:
+                    f.SetWeight(wx.FONTWEIGHT_BOLD)
+                except Exception:
+                    pass
+                header.SetFont(f)
+                s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
+            except Exception:
+                pass
         super().__init__(parent)
         self.on_save = on_save
         self.on_cancel = on_cancel
         self.cfg = cfg.copy()
+        self.conf_path = conf_path
         s = wx.BoxSizer(wx.VERTICAL)
         # header label
-        try:
-            header = wx.StaticText(self, label="設定")
-            f = header.GetFont()
-            try:
-                f.SetPointSize(f.GetPointSize() + 3)
-            except Exception:
-                pass
-            try:
-                f.SetWeight(wx.FONTWEIGHT_BOLD)
-            except Exception:
-                pass
-            header.SetFont(f)
-            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
-        except Exception:
-            pass
+        _create_label("設定", 3)
         s.Add(wx.StaticLine(self), flag=wx.GROW)
         # Theme (Radio Button)
-        try:
-            header = wx.StaticText(self, label="テーマ")
-            f = header.GetFont()
-            try:
-                f.SetPointSize(f.GetPointSize() + 1)
-            except Exception:
-                pass
-            try:
-                f.SetWeight(wx.FONTWEIGHT_BOLD)
-            except Exception:
-                pass
-            header.SetFont(f)
-            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
-        except Exception:
-            pass
+        _create_label("テーマ", 3)
         self.mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.mode_radio_light = wx.RadioButton(self, wx.ID_ANY, 'ライト', style=wx.RB_GROUP)
         self.mode_radio_dark = wx.RadioButton(self, wx.ID_ANY, 'ダーク')
@@ -54,21 +43,7 @@ class SettingsPanel(wx.Panel):
         s.Add(self.mode_sizer, 0, wx.LEFT, 8)
         s.Add(wx.StaticLine(self), flag=wx.GROW)
         # Menu Items
-        try:
-            header = wx.StaticText(self, label="メニューアイテム")
-            f = header.GetFont()
-            try:
-                f.SetPointSize(f.GetPointSize() + 1)
-            except Exception:
-                pass
-            try:
-                f.SetWeight(wx.FONTWEIGHT_BOLD)
-            except Exception:
-                pass
-            header.SetFont(f)
-            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
-        except Exception:
-            pass
+        _create_label("メニューアイテム", 1)
         # area to list editable tool rows
         self.list_panel = wx.Panel(self)
         self.list_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -153,7 +128,7 @@ class SettingsPanel(wx.Panel):
             wx.MessageBox("ツールが一つも設定されていません。", "エラー", wx.OK | wx.ICON_ERROR)
             return
         try:
-            config.save(newcfg)
+            config.save(self.conf_path, newcfg)
         except Exception:
             wx.MessageBox("設定の保存に失敗しました。", "エラー", wx.OK | wx.ICON_ERROR)
             return

@@ -1,5 +1,7 @@
-venv
-docs
 .vscode
 __pycache__
+build
+dist
+venv
+*.spec
 aitools_ide_config.json

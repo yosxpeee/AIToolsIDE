@@ -6,12 +6,23 @@ import sys
 import subprocess
 from .settings_panel import SettingsPanel
 
-APP_VERSION = "v0.1"
+APP_VERSION = "v1.0"
+
+def resource_path(relative_path):
+    """リソースへの絶対パスを取得する"""
+    try:
+        base_path = sys._MEIPASS # PyInstallerで一時展開されたファイルのパス
+    except Exception:
+        base_path = os.path.abspath(".") # 通常の実行時
+    return os.path.join(base_path, relative_path)
 
 class MainFrame(wx.Frame):
-    def __init__(self, cfg):
+    def __init__(self, cfg, conf_path):
         super().__init__(None, title=f"AI Tools IDE {APP_VERSION}", size=(1440, 900), pos=(0,0))
+        self.icon = wx.Icon(resource_path("app_icon.ico"),wx.BITMAP_TYPE_ICO)
+        self.SetIcon(self.icon)
         self.cfg = cfg
+        self.conf_path = conf_path
         self.current_tool = None
         # use a plain panel with a horizontal BoxSizer instead of SplitterWindow
         # so there is no sash to drag/double-click and no cursor change.
@@ -33,7 +44,7 @@ class MainFrame(wx.Frame):
         # wrap settings in a bordered container so it has a visible border
         settings_container = wx.Panel(right, style=wx.BORDER_SIMPLE)
         settings_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.settings_panel = SettingsPanel(settings_container, cfg, on_save=self._on_settings_saved, on_cancel=self._on_settings_cancelled)
+        self.settings_panel = SettingsPanel(settings_container, cfg, conf_path, on_save=self._on_settings_saved, on_cancel=self._on_settings_cancelled)
         self.settings_panel.Hide()
         settings_sizer.Add(self.settings_panel, 1, wx.EXPAND)
         settings_container.SetSizer(settings_sizer)

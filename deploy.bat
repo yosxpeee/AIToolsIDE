@@ -1,0 +1,1 @@
+pyinstaller run.py -n AIToolsIDE.exe --clean --onefile --noconsole --add-data="app_icon.ico;." --icon=app_icon.ico
