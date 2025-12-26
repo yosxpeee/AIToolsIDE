@@ -14,7 +14,24 @@ class SettingsPanel(wx.Panel):
             header = wx.StaticText(self, label="設定")
             f = header.GetFont()
             try:
-                f.SetPointSize(f.GetPointSize() + 2)
+                f.SetPointSize(f.GetPointSize() + 3)
+            except Exception:
+                pass
+            try:
+                f.SetWeight(wx.FONTWEIGHT_BOLD)
+            except Exception:
+                pass
+            header.SetFont(f)
+            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
+        except Exception:
+            pass
+        s.Add(wx.StaticLine(self), flag=wx.GROW)
+        # Theme (Radio Button)
+        try:
+            header = wx.StaticText(self, label="テーマ")
+            f = header.GetFont()
+            try:
+                f.SetPointSize(f.GetPointSize() + 1)
             except Exception:
                 pass
             try:
@@ -26,17 +43,32 @@ class SettingsPanel(wx.Panel):
         except Exception:
             pass
         self.mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.mode_radio_title = wx.StaticText(self, label="テーマ: ")
         self.mode_radio_light = wx.RadioButton(self, wx.ID_ANY, 'ライト', style=wx.RB_GROUP)
         self.mode_radio_dark = wx.RadioButton(self, wx.ID_ANY, 'ダーク')
         if self.cfg["webview_theme"] == "dark":
             self.mode_radio_dark.SetValue(True)
         else:
             self.mode_radio_light.SetValue(True)
-        self.mode_sizer.Add(self.mode_radio_title)
         self.mode_sizer.Add(self.mode_radio_light, flag=wx.GROW)
         self.mode_sizer.Add(self.mode_radio_dark, flag=wx.GROW)
         s.Add(self.mode_sizer, 0, wx.LEFT, 8)
+        s.Add(wx.StaticLine(self), flag=wx.GROW)
+        # Menu Items
+        try:
+            header = wx.StaticText(self, label="メニューアイテム")
+            f = header.GetFont()
+            try:
+                f.SetPointSize(f.GetPointSize() + 1)
+            except Exception:
+                pass
+            try:
+                f.SetWeight(wx.FONTWEIGHT_BOLD)
+            except Exception:
+                pass
+            header.SetFont(f)
+            s.Add(header, 0, wx.ALL | wx.ALIGN_LEFT, 8)
+        except Exception:
+            pass
         # area to list editable tool rows
         self.list_panel = wx.Panel(self)
         self.list_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -56,7 +88,10 @@ class SettingsPanel(wx.Panel):
     def build_rows(self, cfg: dict):
         # clear existing
         for _, _, _, _, cont in list(self.rows):
-            cont.Destroy()
+            try:
+                cont.Destroy()
+            except Exception:
+                continue
         self.rows.clear()
         for key, entry in cfg.items():
             # expect entry to be dict {name, url}
@@ -101,7 +136,10 @@ class SettingsPanel(wx.Panel):
             newcfg["webview_theme"] = "dark"
         newcfg["menu_items"] = {}
         for key_ctrl, name_ctrl, url_ctrl, _, _, in self.rows:
-            key = key_ctrl.GetValue().strip()
+            try:
+                key = key_ctrl.GetValue().strip()
+            except Exception:
+                continue
             name = name_ctrl.GetValue().strip()
             url = url_ctrl.GetValue().strip()
             if not key:
