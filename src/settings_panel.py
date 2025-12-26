@@ -50,26 +50,30 @@ class SettingsPanel(wx.Panel):
         s.Add(ctl_sizer, 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizer(s)
         btn_add.Bind(wx.EVT_BUTTON, self._on_add_row)
-        self.rows = []  # list of (name_ctrl, url_ctrl, remove_btn, container)
+        self.rows = []  # list of (key_ctrl, name_ctrl, url_ctrl, remove_btn, container)
         self.build_rows(self.cfg["menu_items"])
 
     def build_rows(self, cfg: dict):
         # clear existing
-        for _, _, _, cont in list(self.rows):
+        for _, _, _, _, cont in list(self.rows):
             cont.Destroy()
         self.rows.clear()
         for key, entry in cfg.items():
             # expect entry to be dict {name, url}
+            keyword = key
             name = entry.get("name", key)
             url = entry.get("url", "")
-            self._create_row(name, url)
+            self._create_row(keyword, name, url)
 
-    def _create_row(self, name: str = "", url: str = ""):
+    def _create_row(self, keyword: str = "", name: str = "", url: str = ""):
         cont = wx.Panel(self.list_panel)
         hs = wx.BoxSizer(wx.HORIZONTAL)
+        key_ctrl = wx.TextCtrl(cont, value=keyword)
         name_ctrl = wx.TextCtrl(cont, value=name)
         url_ctrl = wx.TextCtrl(cont, value=url)
         btn_rm = wx.Button(cont, label="削除")
+        hs.Add(wx.StaticText(cont, label="キー:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        hs.Add(key_ctrl, 0, wx.EXPAND | wx.RIGHT, 6)
         hs.Add(wx.StaticText(cont, label="名前:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         hs.Add(name_ctrl, 0, wx.EXPAND | wx.RIGHT, 6)
         hs.Add(wx.StaticText(cont, label="URL:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
@@ -83,7 +87,7 @@ class SettingsPanel(wx.Panel):
             self.rows[:] = [r for r in self.rows if r[3] is not cont]
             self.Layout()
         btn_rm.Bind(wx.EVT_BUTTON, on_remove)
-        self.rows.append((name_ctrl, url_ctrl, btn_rm, cont))
+        self.rows.append((key_ctrl, name_ctrl, url_ctrl, btn_rm, cont))
 
     def _on_add_row(self, event):
         self._create_row("", "")
@@ -96,12 +100,16 @@ class SettingsPanel(wx.Panel):
         else:
             newcfg["webview_theme"] = "dark"
         newcfg["menu_items"] = {}
-        for name_ctrl, url_ctrl, _, _ in self.rows:
+        for key_ctrl, name_ctrl, url_ctrl, _, _, in self.rows:
+            key = key_ctrl.GetValue().strip()
             name = name_ctrl.GetValue().strip()
             url = url_ctrl.GetValue().strip()
+            if not key:
+                continue
             if not name:
                 continue
-            key = name.lower().replace(" ", "_")
+            if not url:
+                continue
             newcfg["menu_items"][key] = {"name": name, "url": url}
         if not newcfg:
             wx.MessageBox("ツールが一つも設定されていません。", "エラー", wx.OK | wx.ICON_ERROR)

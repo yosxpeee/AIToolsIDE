@@ -4,7 +4,6 @@ import wx.html2
 import os
 import sys
 import subprocess
-from . import config
 from .settings_panel import SettingsPanel
 
 APP_VERSION = "v0.1"
